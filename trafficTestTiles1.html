@@ -34,8 +34,6 @@
 
 		var carsInMotion = [];  //this array holds sets of advancing cars
 
-		var drivablePollingPointer = 0;
-
 
 		var activeCols = 12;  //only middle 4 active
 		var activeRows = 12;  //only middle 4 active
@@ -135,28 +133,14 @@
 			var i;
 			var ii;
 			var pp;
+
+			//initialize tiles 
 			for (pp=0; pp<activeRows; pp++){
 				for (ii=0; ii<activeCols; ii++){
+
 					var ip = (pp * activeCols) + ii;
-
-					/*
-					sprite.colorState = 0;
-					sprite.x = (squareSide+squarePadding) * ii;
-					sprite.y = (squareSide+squarePadding) * pp;
-					//sprite.currentAnimationFrame = Math.random() * spriteSheet.getNumFrames("playAllStates");
-					sprite.currentAnimationFrame = sprite.colorState;
-					stage.addChild(sprite);
-					spriteList.push(sprite);
-					//sprite.onPress = handleOnPress;
-					sprite.addEventListener("click", handleOnPress);
-					sprite.ip = ip;
-					*/
-
 					var mTile = new MetaTile(ii, pp, ip);
 					metaTiles.push(mTile);
-
-					//if (ip < numberOfTiles - 1) { sprite = sprite.clone(); }
-
 				}
 			}
 
@@ -182,7 +166,7 @@
 			 		mTile.driveable = true;
 
 			 		var sprite = getACar(mTile.direction);
-			 		//sprite.name = "car_"+ip;
+			 		
 			 		sprite.x = squareSide * ii;
 			 		sprite.y = squareSide * pp;
 			 		
@@ -202,7 +186,7 @@
 			 		mTile.driveable = true;
 
 			 		var sprite = getACar(mTile.direction);
-			 		//sprite.name = "car_"+ip;
+			 		
 			 		sprite.x = squareSide * ii;
 			 		sprite.y = squareSide * pp;
 					
@@ -223,7 +207,7 @@
 			 			mTile.driveable = true;
 
 			 			var sprite = getACar(mTile.direction);
-			 			//sprite.name = "car_"+ip;
+			 			
 			 			sprite.x = squareSide * ii;
 			 			sprite.y = squareSide * pp;
 					
@@ -246,7 +230,7 @@
 			 			mTile.driveable = true;
 
 			 			var sprite = getACar(mTile.direction);
-			 			//sprite.name = "car_"+ip;
+			 			
 			 			sprite.x = squareSide * ii;
 			 			sprite.y = squareSide * pp;
 					
@@ -546,266 +530,7 @@
 
 		}
 
-		function advanceLaneVertical(columnIdx)
-		{
-			//err("trace_advanceLaneVertical", columnIdx);
 
-			var gapSize;
-			var leadCarTile;
-			var p;
-			var foundGap = false;
-			var mTile;
-			var lastIdentity;
-			var nextIdentity;
-
-			var dir = columnDirections[columnIdx];
-
-			if (dir == "S"){
-				p = 0;
-				//leadCarTile will be null if first (0) tile is empty!
-				mTile = getMetaTileByIP(columnIdx, p);
-				if (mTile.identity == -1){
-					var edgeGap = [mTile];
-					mTile.addAdjacentVertical(edgeGap, mTile.identity);
-					gapSize = edgeGap.length;
-					spawnCarsForLaneVertical(columnIdx, gapSize, false);
-				}
-
-				while(!foundGap && (p < activeRows)){
-					mTile = getMetaTileByIP(columnIdx, p);
-					nextIdentity = mTile.identity;
-					if (nextIdentity == -1){
-						var gapSet = [mTile];
-						mTile.addAdjacentVertical(gapSet, nextIdentity);
-						gapSize = gapSet.length;
-						leadCarTile = getMetaTileByIP(columnIdx, p - 1);
-						foundGap = true;
-					}else{
-						lastIdentity = nextIdentity;
-						p++;
-					}
-
-				}
-				if (foundGap){
-					var advancingSet = [];
-					leadCarTile.addAllNorth(advancingSet);
-
-					var advancingSetObj = new AdvancingCars(advancingSet, gapSize, dir, leadCarTile._i);
-
-					advancingSetObj.tweenCars();
-
-					carsInMotion.push(advancingSetObj);
-
-
-				}
-			}else if (dir == "N"){
-				p = activeRows - 1;
-
-				//leadCarTile will be null if first (0) tile is empty!
-				mTile = getMetaTileByIP(columnIdx, p);
-				if (mTile.identity == -1){
-					var edgeGap = [mTile];
-					mTile.addAdjacentVertical(edgeGap, mTile.identity);
-					gapSize = edgeGap.length;
-					spawnCarsForLaneVertical(columnIdx, gapSize, false);
-				}
-
-				while(!foundGap && (p >= 0)){
-					mTile = getMetaTileByIP(columnIdx, p);
-					nextIdentity = mTile.identity;
-					if (nextIdentity == -1){
-						var gapSet = [mTile];
-						mTile.addAdjacentVertical(gapSet, nextIdentity);
-						gapSize = gapSet.length;
-						leadCarTile = getMetaTileByIP(columnIdx, p + 1);
-						foundGap = true;
-					}else{
-						lastIdentity = nextIdentity;
-						p--;
-					}
-
-				}
-				if (foundGap){
-					var advancingSet = [];
-					leadCarTile.addAllSouth(advancingSet);
-
-					var advancingSetObj = new AdvancingCars(advancingSet, gapSize, dir, leadCarTile._i);
-
-					advancingSetObj.tweenCars();
-
-					carsInMotion.push(advancingSetObj);
-
-
-				}
-			}
-		}
-
-		function advanceLaneHorizontal(rowIdx)
-		{
-			//err("trace_advanceLaneVertical", columnIdx);
-
-			var gapSize;
-			var leadCarTile;
-			var i;
-			var foundGap = false;
-			var mTile;
-			var lastIdentity;
-			var nextIdentity;
-
-			var dir = rowDirections[rowIdx];
-
-			if (dir == "E"){
-				i = 0;
-				//leadCarTile will be null if first (0) tile is empty!
-				mTile = getMetaTileByIP(i, rowIdx);
-				if (mTile.identity == -1){
-					var edgeGap = [mTile];
-					mTile.addAdjacentHorizontal(edgeGap, mTile.identity);
-					gapSize = edgeGap.length;
-					spawnCarsForLaneHorizontal(rowIdx, gapSize, false);
-				}
-
-				while(!foundGap && (i < activeCols)){
-					mTile = getMetaTileByIP(i, rowIdx);
-					var mTileDir = mTile.direction;
-					if (mTileDir != dir){
-						//cannot advance into this tile... how to handle this??
-						i++;
-					}else{
-						nextIdentity = mTile.identity;
-						if (nextIdentity == -1){
-							var gapSet = [mTile];
-							mTile.addAdjacentHorizontal(gapSet, nextIdentity);
-							gapSize = gapSet.length;
-							leadCarTile = getMetaTileByIP(i - 1, rowIdx);
-							foundGap = true;
-						}else{
-							lastIdentity = nextIdentity;
-							i++;
-						}
-					}
-					
-
-				}
-				if (foundGap){
-					var advancingSet = [];
-					leadCarTile.addAllWest(advancingSet, true);
-
-					var advancingSetObj = new AdvancingCars(advancingSet, gapSize, dir, leadCarTile._p);
-
-					advancingSetObj.tweenCars();
-
-					carsInMotion.push(advancingSetObj);
-
-
-				}
-			}else if (dir == "W"){
-				i = activeCols - 1;
-
-				//leadCarTile will be null if first (0) tile is empty!
-				mTile = getMetaTileByIP(i, rowIdx);
-				if (mTile.identity == -1){
-					var edgeGap = [mTile];
-					mTile.addAdjacentHorizontal(edgeGap, mTile.identity);
-					gapSize = edgeGap.length;
-					spawnCarsForLaneHorizontal(rowIdx, gapSize, false);
-				}
-
-				while(!foundGap && (i >= 0)){
-					mTile = getMetaTileByIP(i, rowIdx);
-					var mTileDir = mTile.direction;
-					if (mTileDir != dir){
-						//cannot advance into this tile... how to handle this??
-						i++;
-					}else{
-						nextIdentity = mTile.identity;
-						if (nextIdentity == -1){
-							var gapSet = [mTile];
-							mTile.addAdjacentHorizontal(gapSet, nextIdentity);
-							gapSize = gapSet.length;
-							leadCarTile = getMetaTileByIP(i + 1, rowIdx);
-							foundGap = true;
-						}else{
-							lastIdentity = nextIdentity;
-							i--;
-						}
-					}
-					
-
-				}
-				if (foundGap){
-					var advancingSet = [];
-					leadCarTile.addAllEast(advancingSet, true);
-
-					var advancingSetObj = new AdvancingCars(advancingSet, gapSize, dir, leadCarTile._p);
-
-					advancingSetObj.tweenCars();
-
-					carsInMotion.push(advancingSetObj);
-
-
-				}
-			}
-		}
-
-		function spawnCarsForLaneVertical(columnIdx, numToSpawn, continueClearingProcess)
-		{
-			var dir = columnDirections[columnIdx];
-			var i;
-			for (i=0; i < numToSpawn; i++){
-				
-				var pp = (dir == "N") ? (activeRows - i - 1) : i;
-				var mTile = getMetaTileByIP(columnIdx, pp);
-
-				if(mTile.carHere == null){
-					var nCar = getACar(dir);
-					nCar.x = squareSide * columnIdx;
-			 		nCar.y = squareSide * pp;
-					console.log("spawnCarsForLaneVertical! car spawned at x:"+nCar.x+" y: "+nCar.y + " dir = " + dir);
-					mTile.setCarHere(nCar);
-				}
-
-
-				
-			}
-			stage.update();
-
-			//console.log("cars spawned in lane : " + columnIdx);
-
-			if (continueClearingProcess){
-				continueClearingMatches();
-			}
-			
-
-		}
-
-		function spawnCarsForLaneHorizontal(rowIdx, numToSpawn, continueClearingProcess)
-		{
-			var dir = rowDirections[rowIdx];
-			var i;
-			for (i=0; i < numToSpawn; i++){
-				var ii = (dir == "W") ? (activeCols - i - 1) : i;
-				var mTile = getMetaTileByIP(ii, rowIdx);
-
-				if (mTile.carHere == null){
-					var nCar = getACar(dir);
-					nCar.x = squareSide * ii;
-			 		nCar.y = squareSide * rowIdx;
-					console.log("spawnCarsForLaneHorizontal! car spawned at x:"+nCar.x+" y: "+nCar.y+" dir = "+dir);
-					mTile.setCarHere(nCar);
-				}
-				
-			}
-			stage.update();
-
-			//console.log("cars spawned in horizontal lane : " + rowIdx);
-
-			if (continueClearingProcess){
-				continueClearingMatches();
-			}
-			
-
-		}
 
 		function spawnOneCar(mTile)
 		{
@@ -839,7 +564,7 @@
 			stage.addChild(nCar);
 			spriteList.push(nCar);
 			nCar.addEventListener("click", handleOnPress);
-
+			nCar.name = "car-"+inDir+" : "+nCar.colorState;
 			return nCar;
 		}
 		
@@ -851,7 +576,7 @@
 
 			var car;
 
-			if (mTile.carHere == null){
+			if (!mTile.carHere){
 				return false;
 			}else{
 				car = mTile.carHere;
@@ -873,6 +598,11 @@
 					var destinationY = targetTile._p * squareSide;
 					var tween = createjs.Tween.get(car).to({x:destinationX, y:destinationY}, 400, createjs.Ease.cubicInOut).call(carDriveComplete, [mTile, targetTile, myDir]);
 					displayInTransition = true;
+
+					mTile.carLeavingHere();
+					targetTile.setCarHere(car);
+					//update tile identities immediately, not after tween completes
+
 					return true;
 				}
 			} 
@@ -881,10 +611,16 @@
 
 		function carDriveComplete(originTile, landingTile, dir)
 		{
-			var car = originTile.carHere;
-			originTile.carLeavingHere();
-			landingTile.setCarHere(car);
+
+			//update tile identities immediately, not after tween completes
+			//var car = originTile.carHere;
+			//originTile.carLeavingHere();
+			//landingTile.setCarHere(car);
+
+
 			displayInTransition = false;
+
+			//find edge tile for column or row (last tile in lane) and see if new car can spawn there
 
 			var columnIdx, rowIdx;
 			var edgeTile;
@@ -993,107 +729,7 @@
 			 stage.update();
 		}
 
-		function AdvancingCars(cars, numSpaces, directionString, colOrRowIdx)
-		{
-			this.setMembers = cars;
-			this.direction = directionString;
-			this.laneId = colOrRowIdx; //column or row, depending on direction
-			this.numSpaces = numSpaces;
-			this.numMembers = this.setMembers.length;
-			this.tweensComplete = 0;
-
-			
-
-			this.verifyAdvance = function()
-			{
-				//make sure the way is clear and were not going to enter cross traffic
-				var leadCarTile = this.setMembers[0];
-				var i;
-				var ii = leadCarTile._i;
-				var pp = leadCarTile._p;
-				var verified = 1;
-				for (i=1; i<numSpaces; i++){
-					if (this.direction == "N"){
-						pp--;
-					}else if (this.direction == "S"){
-						pp++;
-					}else if (this.direction == "W"){
-						ii--;
-					}else if (this.direction == "E"){
-						ii++;
-					}
-					var nextTile = getMetaTileByIP(ii, pp);
-					if (nextTile.direction != this.direction){
-						//we cant drive into here
-						return verified;
-					}else{
-						verified++;
-					}
-				}
-				return verified;
-			}
-
-			this.tweenCars = function()
-			{
-				this.numSpaces = this.verifyAdvance();
-
-				var i;
-				for (i=0; i<this.numMembers; i++){
-					var car = this.setMembers[i].carHere;
-					var currentX = car.x;
-					var currentY = car.y;
-					var destinationX = currentX;
-					var destinationY = currentY;
-					if (this.direction == "N"){
-						destinationY -= (this.numSpaces * squareSide);
-					}else if (this.direction == "S"){
-						destinationY += (this.numSpaces * squareSide);
-					}else if (this.direction == "W"){
-						destinationX -= (this.numSpaces * squareSide);
-					}else if (this.direction == "E"){
-						destinationX += (this.numSpaces * squareSide);
-					}
-					//TweenMax.to(asset, transitionTime, {colorMatrixFilter:{brightness:2}});
-					var tween = createjs.Tween.get(car).to({x:destinationX, y:destinationY}, 400, createjs.Ease.cubicInOut).call(this.tweenOutComplete, [], this);
-					
-					
-				}
-
-				displayInTransition = true;
-			}
-
-			this.tweenOutComplete = function()
-			{
-				this.tweensComplete++;
-				if (this.tweensComplete >= this.numMembers){
-
-					//set cars to new location tiles
-					var i;
-					for (i=0; i<this.numMembers; i++){
-						var car = this.setMembers[i].carHere;
-						var formerIP = car.ip;
-						var formerTile = metaTiles[formerIP];
-						formerTile.carLeavingHere();
-
-						var newTile = getMetaTileForSpritePosition(car.x, car.y);
-						newTile.setCarHere(car);
-
-					}
-					displayInTransition = false;
-
-					console.log("successful advance of cars");
-
-					if (this.direction == "N" || this.direction == "S"){
-						spawnCarsForLaneVertical(this.laneId, this.numSpaces, true);
-					}else{
-						spawnCarsForLaneHorizontal(this.laneId, this.numSpaces, true);
-					}
-					
-
-					removeFromSet(this, carsInMotion);
-				}
-			}
-		}
+		
 
 		function MatchingSet(tiles, directionVertical)
 		{
@@ -1150,32 +786,7 @@
 
 					continueAdvancingCars();
 
-					/*
-
-					if (this.uniformDirection){
-						//all going the same way
-						var anyTile = this.setMembers[0];
-						//err("tween out complete", "column = " + anyTile._i);
-						if (this.directionVertical){
-							advanceLaneVertical(anyTile._i);
-						}else{
-							//advanceLaneHorizontal
-							advanceLaneHorizontal(anyTile._p);
-						}
-					}else{
-						for (i=0; i<this.numMembers; i++){
-							var tile = this.setMembers[i];
-							var thisDir = tile.direction;
-							if (thisDir == "N" || thisDir == "S"){
-								advanceLaneVertical(tile._i);
-							}else{
-								advanceLaneHorizontal(tile._p);
-							}
-						}
-					}
-
-					*/
-
+					
 				}
 			}
 
@@ -1415,34 +1026,7 @@
 
 		
 
-		/*
-
-		function tweenHighlightTile(mTile)
-		{
-			var tween = createjs.Tween.get(mTile.displayAsset).to({alpha:0}, 200, createjs.Ease.bounceOut).call(tweenComplete);
-			tilesInTransition++;
-			displayInTransition = true;
-		}
-
-		function tweenComplete()
-		{
-			tilesInTransition--;
-
-			if (tilesInTransition == 0){
-				//bring alpha back for all tiles
-				var l = spriteList.length;
-				for (var i = 0; i < l; i++) {
-					var sprite = spriteList[i];
-					sprite.alpha = 1;
-				}
-				stage.update();
-				displayInTransition = false;
-			}
-
-
-		}
-		*/
-
+		
 		function setPlacementArray(numberOfTiles) {
 			for (var i = 0; i < numberOfTiles; i++){
 				placementArray.push(i);
@@ -1459,12 +1043,7 @@
 
 		function err(type, message)
 		{
-			/*
-			var err = new Error();
-			err.name = 'My API ' + type + ' Error';
-			err.message = message;
-			throw(err);
-			*/
+			
 			console.log('type: '+ type + 'message: ' + message);
 		}
 
