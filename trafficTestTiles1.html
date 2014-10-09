@@ -94,7 +94,6 @@
 
 		function handleImageLoad(event) 
 		{
-			//err("trace", "onLoadImage");
 			loadedImage++;
 			if (loadedImage >= imagesToLoad){
 				setup();
@@ -104,15 +103,12 @@
 
 		function setup()
 		{
-
-			//err("trace", "onSetup");
-
 			// grab canvas width and height for later calculations:
 			var w = canvas.width;
 			var h = canvas.height;
 
 
-			//var bgbitmap = new createjs.Bitmap("images/streets_bg.png");
+			
 			var bgbitmap = new createjs.Bitmap(bg_img);
 			stage.addChild(bgbitmap);
 
@@ -128,27 +124,9 @@
 															}
 													   });
 
-			// to save file size, the loaded sprite sheet only includes right facing animations
-			// we could flip the display objects with scaleX=-1, but this is expensive in some browsers
-			// instead, we append flipped versions of the frames to our sprite sheet
-			// this adds only horizontally flipped frames:
-			//createjs.SpriteSheetUtils.addFlippedFrames(spriteSheet, true, false, false);
-
-			// we could rewire the "next" sequences to make them work like so:
-			// but instead we will use code in the angleChange function.
-			/*
-			 spriteSheet.getAnimation("walkDnRt").next = "walkDnRt_h";
-			 spriteSheet.getAnimation("walkDnRt_h").next = "walkRt_h";
-			 spriteSheet.getAnimation("walkRt_h").next = "walkUpRt_h";
-			 spriteSheet.getAnimation("walkUpRt_h").next = "walkUpRt";
-			 */
 
 			// create a Sprite instance to display and play back the sprite sheet:
 			carSprite = new createjs.Sprite(carSpritesheet);
-
-			// start playing the first sequence:
-			//sprite.gotoAndPlay("playAllStates");		//animate
-
 
 			var numberOfTiles = activeRows * activeCols;
 			setPlacementArray(numberOfTiles);
@@ -323,9 +301,7 @@
 
 			}else if (mTile.identity >= 0){
 				
-				
 				// countConsecutiveVertical();
-
 				//countConsecutiveHorizontal();
 				
 			}else{
@@ -1499,14 +1475,9 @@
 <body onload="init();">
 
 <header id="header" class="EaselJS">
-	<h1><span class="text-product">No Easel<strong>JS</strong></span> Sprite For You!</h1>
+	<h1><span class="text-product">EaselJS<strong>JS</strong></span> Traffic Match 3!</h1>
 
-	<p>Dev sample showing how to use <strong>SpriteSheet</strong>, <strong>Sprite</strong>,
-		and <strong>SpriteSheetUtils</strong>. GODDAMNIT MAKE SPRITES WANT THERE </p>
-
-	<p>Some browsers can not load images or access pixel data when running local files, and may throw a security error
-		or not
-		work unless the content is running on a server.</p>
+	<p>Working to understand the best way to build out the structure. Cars are Tiles, or Cars on Tiles?</p>
 </header>
 
 <div class="canvasHolder">
