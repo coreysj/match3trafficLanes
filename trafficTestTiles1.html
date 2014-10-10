@@ -26,7 +26,6 @@
 		var recycledSprites = []; //sprites cleared that can re-enter board
 
 		var metaTiles = [];
-		var placementArray = [];
 
 		var cars = [];
 
@@ -34,6 +33,7 @@
 
 		var carsInMotion = [];  //this array holds sets of advancing cars
 
+		var spawningTiles = []; //last tile of each driveable lane, where new cars enter
 
 		var activeCols = 12;  //only middle 4 active
 		var activeRows = 12;  //only middle 4 active
@@ -60,6 +60,8 @@
 
 
 		var displayInTransition = false;
+
+		var gameStateSettled = false;
 
 		var tilesInTransition = 0;
 
@@ -127,7 +129,6 @@
 			carSprite = new createjs.Sprite(carSpritesheet);
 
 			var numberOfTiles = activeRows * activeCols;
-			setPlacementArray(numberOfTiles);
 
 			spriteList = [];
 			var i;
@@ -241,6 +242,24 @@
 			 	}
 			 }
 
+			 //initialize spawn points
+
+			 spawningTiles = [];
+			 //N
+			 spawningTiles.push(getMetaTileByIP(6, 11));
+			 spawningTiles.push(getMetaTileByIP(7, 11));
+
+			 //S
+			 spawningTiles.push(getMetaTileByIP(4, 0));
+			 spawningTiles.push(getMetaTileByIP(5, 0));
+
+			 //E
+			 spawningTiles.push(getMetaTileByIP(0, 6));
+			 spawningTiles.push(getMetaTileByIP(0, 7));
+
+			 //W
+			 spawningTiles.push(getMetaTileByIP(11, 4));
+			 spawningTiles.push(getMetaTileByIP(11, 5));
 			 
 
 			  stage.update();
@@ -293,7 +312,27 @@
 				//err('badColor', 'the clicked tile is not gray')
 			}
 
-			updateAllTilesIdentity();
+		}
+
+		function tick(event) {
+			
+			// update the stage:
+			//stage.update(event);
+			
+			if (displayInTransition){
+				//createjs.Tween.tick();
+				stage.update(event);
+			}else if (!gameStateSettled){
+				if (updateClearingProcess()){
+					//all clear, ready for input
+					gameStateSettled = true;
+					console.log("game state settled inside main tick function");
+				}else{
+					gameStateSettled = false;
+					stage.update(event);
+				}
+			}
+				
 		}
 
 		function swapTiles(tileA, tileB)
@@ -331,10 +370,15 @@
 			tileA.carLeavingHere();
 			tileB.carLeavingHere();
 
+			//console.log("SwapTilesComplete, about to set cars: carA = "+carA+" , carB = "+carB);
 			tileA.setCarHere(carB);
 			tileB.setCarHere(carA);
 
-			continueClearingMatches();
+			if(checkSwapTilesForMatching(tileA, tileB)){
+				gameStateSettled = false;
+				continueClearingMatches();
+			}
+			
 		}
 
 
@@ -364,17 +408,20 @@
 					if (nextIdentity == lastIdentity && lastIdentity >= 0){
 						consecutiveCount++;
 						if (p == (activeRows - 1)){
+							//bottom tile of column
 							if (consecutiveCount >= 2){
-								var vSetEnd = matchingSetArray(getMetaTileByIP(i, p - consecutiveCount), consecutiveCount, true);
+								var vSetEnd = new MatchingSet(matchingSetArray(getMetaTileByIP(i, p - consecutiveCount), consecutiveCount, true), true, lastIdentity);
+								
 								matchingSetsToClear.push(vSetEnd);
 							}
 						}
 					}else{
+						//ended consecutive streak
 						if (consecutiveCount >= 2){ //should this be >= or > ????
 							//recognize match
 							//matchingSetArray(upperLeftTile:MatchTile, continuity:int, directionVertical:Boolean=true)
-							//remember that p is not part of set, does extra decrement help here?
-							var vSet = matchingSetArray(getMetaTileByIP(i, p - consecutiveCount - 1), consecutiveCount + 1, true);
+							//remember that *current* p is not part of set, does extra decrement help here?
+							var vSet = new MatchingSet(matchingSetArray(getMetaTileByIP(i, p - consecutiveCount - 1), consecutiveCount + 1, true), true, lastIdentity);
 							matchingSetsToClear.push(vSet);
 						}
 						consecutiveCount = 0;
@@ -387,8 +434,7 @@
 
 			for (i = 0; i < numMatchingSetsFound; i++){
 				var subset = matchingSetsToClear[i];
-				var mSet = new MatchingSet(subset, true);
-				outstandingMatches.push(mSet);
+				outstandingMatches.push(subset);
 			}
 
 			
@@ -396,11 +442,14 @@
 			if (numMatchingSetsFound > 0){
 
 				//breaks if try to clear more than one set at a time
+				/*
 				var numToClear = 1;
 				for (i=0; i < numToClear; i++){
 					var cSet = outstandingMatches[i];
 					cSet.tweenOutTiles();
 				}
+				*/
+				//do this in function that calls this (continueClearingMatches)
 
 				return true;
 			}else{
@@ -435,8 +484,9 @@
 					if (nextIdentity == lastIdentity && lastIdentity >= 0){
 						consecutiveCount++;
 						if (i == (activeCols - 1)){
+							//last tile of row
 							if (consecutiveCount >= 2){
-								var vSetEnd = matchingSetArray(getMetaTileByIP(i - consecutiveCount, p), consecutiveCount, false);
+								var vSetEnd = new MatchingSet(matchingSetArray(getMetaTileByIP(i - consecutiveCount, p), consecutiveCount, false), false, lastIdentity);
 								matchingSetsToClear.push(vSetEnd);
 							}
 						}
@@ -445,7 +495,7 @@
 							//recognize match
 							//matchingSetArray(upperLeftTile:MatchTile, continuity:int, directionVertical:Boolean=true)
 							//remember that p is not part of set, does extra decrement help here?
-							var vSet = matchingSetArray(getMetaTileByIP(i - consecutiveCount, p), consecutiveCount + 1, false);
+							var vSet = new MatchingSet(matchingSetArray(getMetaTileByIP(i - consecutiveCount, p), consecutiveCount + 1, false), false, lastIdentity);
 							matchingSetsToClear.push(vSet);
 						}
 						consecutiveCount = 0;
@@ -458,20 +508,23 @@
 
 			for (i = 0; i < numMatchingSetsFound; i++){
 				var subset = matchingSetsToClear[i];
-				var mSet = new MatchingSet(subset, false);
-				outstandingMatches.push(mSet);
+				outstandingMatches.push(subset);
 			}
 
 			
 
 			if (numMatchingSetsFound > 0){
 
+
 				//breaks if try to clear more than one set at a time
+				/*
 				var numToClear = 1;
 				for (i=0; i < numToClear; i++){
 					var cSet = outstandingMatches[i];
 					cSet.tweenOutTiles();
 				}
+				*/
+				//do this in function that calls this (continueClearingMatches)
 
 				return true;
 			}else{
@@ -480,6 +533,92 @@
 			
 		}
 
+		function checkSwapTilesForMatching(tileA, tileB)
+		{
+			//these tiles swapped by player, check for 3+ match and prioritize clearing (for immediate feedback)
+			var foundMatches = [];
+			var firstVerticalMatch = null;
+			var firstHorizontalMatch = null;
+
+			var adjsetVA = [tileA];
+			tileA.addAdjacentVertical(adjsetVA, tileA.identity);
+			if (adjsetVA.length >= 3){
+				//weve got a 3match
+				adjsetVA.sort(sort_by('_p', true));
+				firstVerticalMatch = new MatchingSet(adjsetVA, true);
+				foundMatches.push(firstVerticalMatch);
+			}
+			var adjsetHA = [tileA];
+			tileA.addAdjacentHorizontal(adjsetHA, tileA.identity);
+			if (adjsetHA.length >= 3){
+				//weve got a 3match
+				adjsetHA.sort(sort_by('_i', true));
+				firstHorizontalMatch = new MatchingSet(adjsetHA, false);
+				foundMatches.push(firstHorizontalMatch);
+			}
+
+			var adjsetVB = [tileB];
+			tileB.addAdjacentVertical(adjsetVB, tileB.identity);
+			if (adjsetVB.length >= 3){
+				//weve got a 3match
+				adjsetVB.sort(sort_by('_p', true));
+				if (firstVerticalMatch != null){
+					if (adjsetVB[0] != adjsetVA[0]){
+					//make sure not part of same match as tile A
+						foundMatches.push(new MatchingSet(adjsetVB, true));
+					}
+				}
+			}
+			var adjsetHB = [tileB];
+			tileB.addAdjacentHorizontal(adjsetHB, tileB.identity);
+			if (adjsetHB.length >= 3){
+				//weve got a 3match
+				adjsetHB.sort(sort_by('_i', true));
+				if (firstHorizontalMatch != null){
+					if (adjsetHB[0] != adjsetHA[0]){
+						//make sure not part of same match as tile A
+						foundMatches.push(new MatchingSet(adjsetHB, false));
+					}
+				}
+			}
+			var numMatchesFound = foundMatches.length;
+			//do we need to vet these to make sure no single tile is part of 2 matching sets?
+
+			for (var i=0; i<numMatchesFound; i++){
+				//put these matches at top of queue
+				outstandingMatches.unshift(foundMatches[i]);
+			}
+			if (numMatchesFound > 0){
+				return true;
+			}else{
+				return false;
+			}
+			
+		}
+
+		function updateClearingProcess()
+		{
+			var allClear = true;
+			var numCarsInTransit = carsInMotion.length;
+			if (numCarsInTransit > 0){
+				//waiting on cars to arrive
+				allClear = false;
+			}else if (updateSpawnPoints()){
+				//new cars added at end of lane
+				allClear = false;
+			}else if (continueAdvancingCars()){
+				//more cars to move into empty spots
+				allClear = false;
+			}else if (continueClearingMatches()){
+				//more matches to clear
+				allClear = false;
+			}else{
+				//everything settled, waiting on player input
+				//console.log("onUpdateClearingProcess, all clear");
+				allClear = true;
+			}
+			return allClear;
+		}
 
 
 		function continueClearingMatches()
@@ -490,16 +629,12 @@
 				cSet.tweenOutTiles();
 
 				return true;
-			}
-
-			if (countConsecutiveVertical()){
+			}else if (countConsecutiveVertical()){
 				var cSet = outstandingMatches[0];
 				cSet.tweenOutTiles();
 
 				return true;
-			}
-
-			if (countConsecutiveHorizontal()){
+			}else if (countConsecutiveHorizontal()){
 				var cSet = outstandingMatches[0];
 				cSet.tweenOutTiles();
 
@@ -512,6 +647,10 @@
 
 		function continueAdvancingCars()
 		{
+
+			//this function, when called, will advance one car one space each time it runs
+			//it will return false when no car can advance
+
 			var foundAdvanceable = false;
 
 			var nc = 0;
@@ -530,6 +669,19 @@
 
 		}
 
+		function updateSpawnPoints()
+		{
+			var numSpawnPoints = spawningTiles.length;
+			for (var i=0; i < numSpawnPoints; i++){
+				var thisSpawnTile = spawningTiles[i];
+				if (!thisSpawnTile.carHere){
+					spawnOneCar(thisSpawnTile);
+					return true;
+				}
+			}
+			return false;
+		}
+
 
 
 		function spawnOneCar(mTile)
@@ -539,7 +691,7 @@
 				nCar.x = squareSide * mTile._i;
 			 	nCar.y = squareSide * mTile._p;
 
-				console.log("spawnOneCar! car spawned at x:"+nCar.x+" y: "+nCar.y+" dir = "+mTile.direction);
+				//console.log("spawnOneCar! car spawned at x:"+nCar.x+" y: "+nCar.y+" dir = "+mTile.direction);
 
 				mTile.setCarHere(nCar);
 			}else{
@@ -560,6 +712,17 @@
 			var randomColor = Math.floor(Math.random() * colorStatesTotal);
 			nCar.colorState = colorStates[randomColor];
 			nCar.dir = inDir;
+			nCar.vx = 0;
+			nCar.vy = 0;
+			if (inDir == "N"){
+				nCar.vy = -1;
+			}else if (inDir == "S"){
+				nCar.vy = 1;
+			}else if (inDir == "E"){
+				nCar.vx = 1;
+			}else if (inDir == "W"){
+				nCar.vx = -1;
+			}
 			nCar.gotoAndStop(getFrameForCarState(nCar.colorState, nCar.dir));
 			stage.addChild(nCar);
 			spriteList.push(nCar);
@@ -582,6 +745,12 @@
 				car = mTile.carHere;
 			}
 
+
+			var car_i = mTile._i;
+			var car_p = mTile._p;
+			car_i += car.vx;
+			car_p += car.vy;
+
 			if (myDir == "N"){
 				targetTile = mTile.N;
 			}else if (myDir == "S"){
@@ -596,12 +765,15 @@
 					//lets a go
 					var destinationX = targetTile._i * squareSide;
 					var destinationY = targetTile._p * squareSide;
-					var tween = createjs.Tween.get(car).to({x:destinationX, y:destinationY}, 400, createjs.Ease.cubicInOut).call(carDriveComplete, [mTile, targetTile, myDir]);
+					var tween = createjs.Tween.get(car).to({x:destinationX, y:destinationY}, 200, createjs.Ease.cubicInOut).call(carDriveComplete, [mTile, targetTile, myDir, car]);
 					displayInTransition = true;
 
 					mTile.carLeavingHere();
+					//console.log("setCarInDriveCarForward : car = "+car);
 					targetTile.setCarHere(car);
 					//update tile identities immediately, not after tween completes
+
+					carsInMotion.push(car);
 
 					return true;
 				}
@@ -609,14 +781,14 @@
 			return false;	
 		}
 
-		function carDriveComplete(originTile, landingTile, dir)
+		function carDriveComplete(originTile, landingTile, dir, car)
 		{
 
 			//update tile identities immediately, not after tween completes
 			//var car = originTile.carHere;
 			//originTile.carLeavingHere();
 			//landingTile.setCarHere(car);
-
+			removeFromSet(car, carsInMotion);
 
 			displayInTransition = false;
 
@@ -644,15 +816,21 @@
 				spawnOneCar(edgeTile);
 			}
 
+			/*
 
-			if (continueAdvancingCars()){
-				//more cars still moving to position
+			var numCarsInTransit = carsInMotion.length;
+			if (numCarsInTransit > 0){
+				//wait for cars to arrive
+			}else if (continueAdvancingCars()){
+				//more cars still need to move to empty position
 			}else if (continueClearingMatches()){
 				//more matches to clear
 			}else{
 				//everything ready for player move
+				console.log("at carDriveComplete - all matches cleared and cars moved, ready for next swap")
 			}
-
+			*/
+			//do this update in main clearing function
 		}
 
 
@@ -678,21 +856,12 @@
 					matchingSet.push(getMetaTileByIP(ii + n, pp));
 				}
 			}
-			//trace("matchingSetLength: "+matchingSet.length)
+			//console.log("matchingSetLength: "+matchingSet.length);
 			return matchingSet;
 		}
 
 
-		function tick(event) {
-			
-			// update the stage:
-			//stage.update(event);
-			
-			if (displayInTransition){
-				//createjs.Tween.tick();
-				stage.update(event);
-			}
-		}
+		
 
 
 		function getMetaTileByIP(ii, pp){
@@ -717,21 +886,9 @@
 			var dirIndex = directions.indexOf(dirString);
 			return anim.frames[dirIndex];
 		}
-
-		function updateAllTilesIdentity()
-		{
-			var numberOfTiles = activeRows * activeCols;
-			for(i=0;i<numberOfTiles;i++){
-				var tTile = metaTiles[i];
-				//tTile.displayAsset.tileText.text = String(tTile.identity);
-				//tTile.displayAsset.gotoAndStop(tTile.identity);
-			 }
-			 stage.update();
-		}
-
 		
 
-		function MatchingSet(tiles, directionVertical)
+		function MatchingSet(tiles, directionVertical, identity)
 		{
 			//tiles = array of MetaTiles
 			//directionVertical = boolean
@@ -741,15 +898,23 @@
 			this.numMembers = this.setMembers.length;
 			this.tilesTweenComplete = 0;
 			this.completeCount = 1;
-			this.uniformDirection = true;
+			this.uniformDirection = true; //are all cars in this set going same direction?
+			this.matchingIdentity = identity;
 
-			//console.log("on make Matching Set, what is this? " + this);
+			console.log("matching set identified, numTiles = "+this.numMembers);
+
+			this.sortTilesAscendingIP = function()
+			{
+				if (directionVertical){
+					this.setMembers.sort(sort_by('_p', true));
+				}else{
+					this.setMembers.sort(sort_by('_i', true));
+				}
+			}
 
 			this.tweenOutTiles = function()
 			{
 				var i;
-
-				var tempObj = this;
 				var dir0tile = this.setMembers[0].direction;
 
 				for (i=0; i<this.numMembers; i++){
@@ -761,7 +926,7 @@
 					}
 					
 					//TweenMax.to(asset, transitionTime, {colorMatrixFilter:{brightness:2}});
-					var tween = createjs.Tween.get(car).to({alpha:0}, 200, createjs.Ease.bounceOut).call(tempObj.tweenOutComplete, [], this);
+					var tween = createjs.Tween.get(car).to({alpha:0}, 200, createjs.Ease.bounceOut).call(this.tweenOutComplete, [], this);
 				}
 				displayInTransition = true;
 				this.tilesTweenComplete = 0;
@@ -813,7 +978,7 @@
 			this.E = null;
 			this.W = null;
 			this.driveable = false;
-			this.identity = -1; //negative one is no car?
+			this.identity = -1; //negative one is no car, 0 - 3 are color cars
 			this.direction = "";
 			this.displayAsset = null;
 			this.carHere = null;
@@ -963,7 +1128,10 @@
 			}
 
 			this.setCarHere = function(car){
-				console.log("onSetCarHere, car = "+car);
+				//console.log("onSetCarHere, car = "+car);
+				if (this.carHere){
+					console.log("attempting to set a car at occupied location: col = "+this._i+" row = "+this._p);
+				}
 				this.carHere = car;
 				this.identity = colorStates.indexOf(this.carHere.colorState);
 				this.carHere.ip = this._ip;
@@ -998,7 +1166,6 @@
 					return false;
 				}
 			}
-			//err('queryExistence', setArray);
 			setArray.push(element);
 			return true;
 		}
@@ -1015,31 +1182,22 @@
 		{
 			for (var i=0; i<arraySet.length; i++){
 				var thisElement = arraySet[i];
-				if (element == thisElement){
+				if (element === thisElement){
 					return true;
 				}
 			}
 			return false;
 		}
 
+		function sort_by(field, reverse, primer)
+		{
+   			var key = function (x) {return primer ? primer(x[field]) : x[field]};
 
-
-		
-
-		
-		function setPlacementArray(numberOfTiles) {
-			for (var i = 0; i < numberOfTiles; i++){
-				placementArray.push(i);
-			}
-		
+   			return function (a,b) {
+	  			var A = key(a), B = key(b);
+	  			return ( (A < B) ? -1 : ((A > B) ? 1 : 0) ) * [-1,1][+!!reverse];                  
+   			}
 		}
-		
-		function getRandomPlacement(placementArray) {
-			randomNumber = Math.floor(Math.random()*placementArray.length);
-			return placementArray.splice(randomNumber, 1)[0];
-		}
-
-		
 
 		function err(type, message)
 		{
