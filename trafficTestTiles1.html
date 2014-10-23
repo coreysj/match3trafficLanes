@@ -918,6 +918,7 @@
 
 			this.tweenOutTiles = function()
 			{
+				//make cars disappear visually
 				var i;
 				var dir0tile = this.setMembers[0].direction;
 
@@ -961,6 +962,7 @@
 
 			this.clearMembers = function()
 			{
+				//clear cars from tiles in set
 				var i;
 				for (i=0; i<this.numMembers; i++){
 					var tile = this.setMembers[i];
@@ -1132,6 +1134,7 @@
 			}
 
 			this.setCarHere = function(car, callingFunction){
+				//this called on setup, when car is driving into new tile, on swapping tiles, and when cars enter game board from edges
 				//console.log("onSetCarHere, car = "+car);
 				if (this.carHere){
 					console.log("attempting to set a car at occupied location: col = "+this._i+" row = "+this._p);
@@ -1146,11 +1149,13 @@
 			}
 
 			this.carLeavingHere = function(){
+				//dissociate this tile's car from this tile (it is driving to new tile)
 				this.carHere = null;
 				this.identity = -1;
 			}
 
 			this.setClear = function(){
+				//remove this tile's car from game (this could be problem if tile was part of two matching sets, where car was deleted and now new one too?)
 				if (this.carHere != null){
 					stage.removeChild(this.carHere);
 					removeFromSet(this.carHere, spriteList);
