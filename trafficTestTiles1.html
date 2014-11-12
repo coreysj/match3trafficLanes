@@ -70,6 +70,14 @@
 
 
 		var activeSelectedTile;
+
+		var directionGreenLight = ["N", "S"];
+		var intersectionClear = false;
+
+		var lightStates = ['green_NS', 'yellow', 'green_EW', 'yellow'];
+		var currentLightState = 0;
+
+
 		
 
 
@@ -260,7 +268,32 @@
 			 //W
 			 spawningTiles.push(getMetaTileByIP(11, 4));
 			 spawningTiles.push(getMetaTileByIP(11, 5));
-			 
+
+			 //identify intersection entrance tiles
+
+			 getMetaTileByIP(4, 6).intersectionEntranceDir = 'E';
+			 getMetaTileByIP(4, 7).intersectionEntranceDir = 'E';
+
+			 getMetaTileByIP(4, 4).intersectionEntranceDir = 'S';
+			 getMetaTileByIP(5, 4).intersectionEntranceDir = 'S';
+
+			 getMetaTileByIP(7, 4).intersectionEntranceDir = 'W';
+			 getMetaTileByIP(7, 5).intersectionEntranceDir = 'W';
+
+			 getMetaTileByIP(6, 7).intersectionEntranceDir = 'N';
+			 getMetaTileByIP(7, 7).intersectionEntranceDir = 'N';
+
+			 for (ii = 4; ii < 8; ii++){
+			 	for (pp = 4; pp < 8; pp++){
+			 		var mTile = getMetaTileByIP(ii, pp);
+			 		mTile.intersectionTile = true;
+			 	}
+			 }
+
+			 var greenlightStatusText = 'green for ' + directionGreenLight[0] + ' and green for ' + directionGreenLight[1];
+			 document.getElementById("lightStatus").textContent = 'traffic light status: ' + greenlightStatusText;
+
+			 changeLightStatus();
 
 			  stage.update();
 
@@ -327,6 +360,12 @@
 					//all clear, ready for input
 					gameStateSettled = true;
 					console.log("game state settled inside main tick function");
+					if (lightStates[currentLightState] == 'yellow'){
+						if (checkIfIntersectionClear()){
+							changeLightStatus();
+							gameStateSettled = false;
+						}
+					}
 				}else{
 					gameStateSettled = false;
 					stage.update(event);
@@ -352,11 +391,13 @@
 		{
 			displayInTransition = false;
 
-			var dirA = tileA.direction;
-			var dirB = tileB.direction;
-
 			var carA = tileA.carHere;
 			var carB = tileB.carHere;
+
+			var dirA = carA.dir;
+			var dirB = carB.dir;
+
+			
 
 			var colorA = carA.colorState;
 			var colorB = carB.colorState;
@@ -366,6 +407,11 @@
 
 			carA.dir = dirB;
 			carB.dir = dirA;
+
+			if (carA.dir != carB.dir){
+				setCarVelocity(carA, carA.dir);
+				setCarVelocity(carB, carB.dir);
+			}
 
 			tileA.carLeavingHere();
 			tileB.carLeavingHere();
@@ -379,6 +425,50 @@
 				continueClearingMatches();
 			}
 			
+		}
+
+		function changeLightStatus()
+		{
+			currentLightState++;
+			currentLightState %= lightStates.length;
+			var lightStateString = lightStates[currentLightState];
+			var greenlightStatusText;
+
+			switch(lightStateString){
+				case 'yellow':
+					directionGreenLight = [];
+					greenlightStatusText = 'yellow';
+				break;
+				case 'green_NS':
+					directionGreenLight = ["N", "S"];
+					greenlightStatusText = 'green for ' + directionGreenLight[0] + ' and green for ' + directionGreenLight[1];
+				break;
+				case 'green_EW':
+					directionGreenLight = ["E", "W"];
+					greenlightStatusText = 'green for ' + directionGreenLight[0] + ' and green for ' + directionGreenLight[1];
+				break;
+			}
+
+			
+			 document.getElementById("lightStatus").textContent = 'traffic light status: ' + greenlightStatusText;
+
+
+		}
+
+		function checkIfIntersectionClear()
+		{
+			var ii;
+			var pp;
+
+			for (ii = 4; ii < 8; ii++){
+			 	for (pp = 4; pp < 8; pp++){
+			 		var mTile = getMetaTileByIP(ii, pp);
+			 		if (mTile.carHere){
+			 			return false;
+			 		}
+			 	}
+			 }
+			 return true;
 		}
 
 
@@ -625,18 +715,17 @@
 		{
 			//current system can only clear one match at a time...return to outstandingMatches and clear those
 			if (outstandingMatches.length > 0){
-				var cSet =  outstandingMatches[0];
-				cSet.tweenOutTiles();
+				//var cSet =  outstandingMatches[0];
+				//cSet.tweenOutTiles();
+
+				instantClearAllMatchingSets();
 
 				return true;
-			}else if (countConsecutiveVertical()){
-				var cSet = outstandingMatches[0];
-				cSet.tweenOutTiles();
+			}else if (countConsecutiveVertical() || countConsecutiveHorizontal()){
+				//var cSet = outstandingMatches[0];
+				//cSet.tweenOutTiles();
 
-				return true;
-			}else if (countConsecutiveHorizontal()){
-				var cSet = outstandingMatches[0];
-				cSet.tweenOutTiles();
+				instantClearAllMatchingSets();
 
 				return true;
 			}
@@ -655,7 +744,7 @@
 
 			var nc = 0;
 
-			while(!foundAdvanceable && nc < spriteList.length){
+			while(nc < spriteList.length){
 				var thisCar = spriteList[nc];
 				var thisTile = metaTiles[thisCar.ip];
 				if (driveCarForward(thisTile)){
@@ -712,17 +801,8 @@
 			var randomColor = Math.floor(Math.random() * colorStatesTotal);
 			nCar.colorState = colorStates[randomColor];
 			nCar.dir = inDir;
-			nCar.vx = 0;
-			nCar.vy = 0;
-			if (inDir == "N"){
-				nCar.vy = -1;
-			}else if (inDir == "S"){
-				nCar.vy = 1;
-			}else if (inDir == "E"){
-				nCar.vx = 1;
-			}else if (inDir == "W"){
-				nCar.vx = -1;
-			}
+			setCarVelocity(nCar, nCar.dir);
+			
 			nCar.gotoAndStop(getFrameForCarState(nCar.colorState, nCar.dir));
 			stage.addChild(nCar);
 			spriteList.push(nCar);
@@ -730,17 +810,36 @@
 			nCar.name = "car-"+inDir+" : "+nCar.colorState;
 			return nCar;
 		}
+
+		function setCarVelocity(car, dir){
+			car.dir = dir; //just to make sure its consistent
+			car.vx = 0;
+			car.vy = 0;
+			if (dir == "N"){
+				car.vy = -1;
+			}else if (dir == "S"){
+				car.vy = 1;
+			}else if (dir == "E"){
+				car.vx = 1;
+			}else if (dir == "W"){
+				car.vx = -1;
+			}
+		}
 		
 		function driveCarForward(mTile)
 		{
 			//drive this car forward one space, if it is empty in front and driveable
-			var myDir = mTile.direction;
+			//var myDir = mTile.direction;
+			//car should have direction variable, not tile! gotta fix this
 			var targetTile;
 
 			var car;
 
 			if (!mTile.carHere){
 				return false;
+				//how would this happen?
+				//driveCarForward is called from function iterating through cars not tiles
+
 			}else{
 				car = mTile.carHere;
 			}
@@ -749,12 +848,14 @@
 				return false;
 			}
 
+			var myDir = car.dir;
+
 
 			var car_i = mTile._i;
 			var car_p = mTile._p;
 			car_i += car.vx;
 			car_p += car.vy;
-
+			/*
 			if (myDir == "N"){
 				targetTile = mTile.N;
 			}else if (myDir == "S"){
@@ -764,22 +865,32 @@
 			}else if (myDir == "E"){
 				targetTile = mTile.E;
 			}
+			*/
+			targetTile = getMetaTileByIP(car_i, car_p);
+
 			if (targetTile != null){
-				if(targetTile.driveable && targetTile.identity == -1 && targetTile.direction == myDir){
-					//lets a go
-					var destinationX = targetTile._i * squareSide;
-					var destinationY = targetTile._p * squareSide;
-					var tween = createjs.Tween.get(car).to({x:destinationX, y:destinationY}, 200, createjs.Ease.cubicInOut).call(carDriveComplete, [mTile, targetTile, myDir, car]);
-					displayInTransition = true;
+				if(targetTile.driveable && targetTile.identity == -1){
+					var isLightGreen = arrayContainsElement(directionGreenLight, myDir); 
+					if (targetTile.intersectionEntranceDir == myDir && isLightGreen == false){
+						//this tile would be entering intersection and not green for cars direction
 
-					mTile.carLeavingHere();
-					//console.log("setCarInDriveCarForward : car = "+car);
-					targetTile.setCarHere(car, "driveCarForward");
-					//update tile identities immediately, not after tween completes
+					}else{
+						//lets a go
+						var destinationX = targetTile._i * squareSide;
+						var destinationY = targetTile._p * squareSide;
+						var tween = createjs.Tween.get(car).to({x:destinationX, y:destinationY}, 200, createjs.Ease.cubicInOut).call(carDriveComplete, [mTile, targetTile, myDir, car]);
+						displayInTransition = true;
 
-					carsInMotion.push(car);
+						mTile.carLeavingHere();
+						//console.log("setCarInDriveCarForward : car = "+car);
+						targetTile.setCarHere(car, "driveCarForward");
+						//update tile identities immediately, not after tween completes
 
-					return true;
+						carsInMotion.push(car);
+
+						return true;
+
+					}
 				}
 			} 
 			return false;	
@@ -864,6 +975,17 @@
 			return matchingSet;
 		}
 
+		function instantClearAllMatchingSets()
+		{
+			//in one go, clear all the tiles that are part of matching sets (no tweening)
+			if (outstandingMatches.length > 0){
+				for (var n=0; n<outstandingMatches.length; n++){
+					var cSet = outstandingMatches[n];
+					cSet.clearMembers();
+				}
+			}
+			outstandingMatches = [];
+		}
 
 		
 
@@ -988,6 +1110,8 @@
 			this.direction = "";
 			this.displayAsset = null;
 			this.carHere = null;
+			this.intersectionTile = false;
+			this.intersectionEntranceDir = ''; //this is necessary to specify that intersection is only entrance for a specific direction
 
 			this.matchNorth = function(checkId){
 				if (this.N != null){
@@ -1226,7 +1350,8 @@
 <header id="header" class="EaselJS">
 	<h1><span class="text-product">EaselJS<strong>JS</strong></span> Traffic Match 3!</h1>
 
-	<p>Working to understand the best way to build out the structure. Cars are Tiles, or Cars on Tiles?</p>
+	<p>Click on two different cars to swap their positions. Match 3 or more cars of same color to clear.</p>
+	<p id="lightStatus">  </p>
 </header>
 
 <div class="canvasHolder">
