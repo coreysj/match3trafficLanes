@@ -18,12 +18,18 @@
 		var lightSprite;
 		var lightSpritesheet; 
 
-		var imagesToLoad = 3;
+		var imagesToLoad = 5;
 		var loadedImage = 0;
 
 		var bg_img = new Image();
 		var car_img = new Image();
 		var light_img = new Image();
+		var text_img = new Image();
+		var text16_img = new Image();
+
+		var fontSheet;
+		//var fontSheet_16px;
+		var scoreBubbles = [];
 
 		var lights = [];
 
@@ -50,7 +56,7 @@
 		var nextPointerIdx = 1;
 
 		var colorStatesTotal = 4;
-		var colorStates = ["blue", "red", "yellow", "green"];
+		var colorStates = ["blue", "red", "yellow", "green", "ambulance"];
 
 		var directions = ["N", "S", "E", "W"];
 
@@ -65,7 +71,10 @@
 		var rowTotalI    = [4, 4, 4, 4, 12, 12, 12, 12, 4, 4, 4, 4];
 
 
-		var displayInTransition = false;
+		var displayInTransition_swapping = false;
+		var displayInTransition_driving = false;
+		var displayInTransition_disappearing = false;
+		var displayInTransition_scoreBubble = false;
 
 		var gameStateSettled = false;
 
@@ -87,8 +96,17 @@
 		var turnsThisGreen = 0;
 
 		var numMatchesInChain = 0;
-		
 
+		var mouseDownPositionX = 0;
+		var mouseDownPositionY = 0;
+		
+		var dragInitiatedAtTile;
+
+		var stageMouseDownActive = false;
+
+		var gameStateChanged = false; //cars have moved/spawned (is set to true until board checked for matches)
+
+		var playerScore = 0;
 
 		function init() {
 			//find canvas and load images, wait for last image to load
@@ -110,6 +128,14 @@
 			light_img = new Image();
 			light_img.src = "images/directionalTrafficLights.png";
 			light_img.onload = handleImageLoad;
+
+			text_img = new Image();
+			text_img.src = "images/bitmapFontNumbers.png";
+			text_img.onload = handleImageLoad;
+
+			text16_img = new Image();
+			text16_img.src = "images/bitmapFontNumbers_16px.png";
+			text16_img.onload = handleImageLoad;
 		}
 
 
@@ -133,6 +159,9 @@
 			var bgbitmap = new createjs.Bitmap(bg_img);
 			stage.addChild(bgbitmap);
 
+			fontSheet = initBitmapFont(32);
+			//fontSheet = initBitmapFont(16);
+
 			// create spritesheet and assign the associated data.
 			carSpritesheet = new createjs.SpriteSheet({
 														   images: [car_img],
@@ -141,7 +170,8 @@
 															   blue:    [0, 3, "blue"],
 															   red:     [4, 7, "red"],
 															   yellow:  [8, 11, "yellow"],
-															   green:   [12, 15, "green"]
+															   green:   [12, 15, "green"],
+															   ambulance:   [16, 19, "ambulance"]
 															}
 													   });
 
@@ -363,6 +393,22 @@
 			// we want to do some work before we update the canvas,
 			// otherwise we could use createjs.Ticker.addEventListener("tick", stage);
 			createjs.Ticker.addEventListener("tick", tick);
+
+
+			stage.on("stagemouseup", function(evt) {
+    			//console.log("the canvas was clicked at "+evt.stageX+","+evt.stageY);
+    			stageMouseDownActive = false;
+    			//console.log('stage mouse up');
+			});
+			stage.on("stagemousedown", function(evt) {
+    			//console.log("the canvas was clicked at "+evt.stageX+","+evt.stageY);
+    			stageMouseDownActive = true;
+			});
+
+			window.addEventListener('keydown', function(event){
+				event.preventDefault();
+				keyPressHandler();
+			});
 		}
 
 		//called if there is an error loading the image (usually due to a 404)
@@ -370,15 +416,37 @@
 			//console.log("Error Loading Image : " + e.target.src);
 		}
 
+		function keyPressHandler(e) {
+
+
+			var pTile = getMetaTileForSpritePosition(stage.mouseX, stage.mouseY);
+			if (pTile != null){
+				pTile.traceTileIdentities();
+			}
+
+			gameStateSettled = false;
+			//continueClearingMatches();
+
+		}
+
+
 		function handleOnPress(event)
 		{
 			var car = event.target;
 			var mTile = metaTiles[car.ip];
 
+			dragInitiatedAtTile = mTile;
+			mouseDownPositionX = event.stageX;
+			mouseDownPositionY = event.stageY;
+			//event.addEventListener('mouseup', handleMouseUp);
+			stage.enableMouseOver(10);
+			car.addEventListener("mouseout", handleMouseOut);
+
+
 			if (activeSelectedTile != null){
 				if (activeSelectedTile.isTileAdjacent(mTile)){
 					//selected two adjacent tiles
-					swapTiles(mTile, activeSelectedTile);
+					//swapTiles(mTile, activeSelectedTile);
 					activeSelectedTile = null;
 				}else{
 					activeSelectedTile = mTile;
@@ -386,6 +454,56 @@
 			}else{
 				activeSelectedTile = mTile;
 			}
+		}
+
+		
+
+		function handleMouseOut(event)
+		{
+
+			if (stageMouseDownActive){
+				//mouse is still down (user dragged outside of car shape)
+				var newMouseX =  event.stageX;
+				var newMouseY =  event.stageY;
+
+				var distMX = newMouseX - mouseDownPositionX;
+				var distMY = newMouseY - mouseDownPositionY;
+
+				var angleDrag = Math.atan2(distMY, distMX) * 180 / Math.PI;
+				angleDrag += 180;
+				//console.log('mouse out captured - angle is '+ angleDrag);
+
+				var neighborTile;
+
+				if (angleDrag >= 45 && angleDrag <= 135){
+					//N
+					//console.log('mouse out captured - direction north');
+					neighborTile = dragInitiatedAtTile.N;
+				}else if (angleDrag >= 135 && angleDrag <= 225){
+					//E
+					//console.log('mouse out captured - direction east');
+					neighborTile = dragInitiatedAtTile.E;
+				}else if (angleDrag >= 225 && angleDrag <= 315){
+					//S
+					//console.log('mouse out captured - direction south');
+					neighborTile = dragInitiatedAtTile.S;
+				}else{
+					//W
+					//console.log('mouse out captured - direction west');
+					neighborTile = dragInitiatedAtTile.W;
+				}
+			
+			
+				if (neighborTile != null){
+					if (neighborTile.carHere){
+						swapTiles(dragInitiatedAtTile, neighborTile);
+					}
+				}
+			}
+			
+			var car = event.target;
+			car.removeEventListener("mouseout", handleMouseOut);
+			stage.enableMouseOver(0);
 		}
 
 		/*
@@ -416,10 +534,11 @@
 			
 			// update the stage:
 			//stage.update(event);
-			
+			var displayInTransition = displayInTransition_disappearing || displayInTransition_driving || displayInTransition_swapping;
+
 			if (displayInTransition){
 				//createjs.Tween.tick();
-				stage.update(event);
+				//stage.update(event);
 			}else if (!gameStateSettled){
 				if (updateClearingProcess()){
 					//all clear, ready for input
@@ -436,9 +555,15 @@
 					}
 				}else{
 					gameStateSettled = false;
-					stage.update(event);
+					//stage.update(event);
 				}
 			}
+
+			if (displayInTransition_scoreBubble){
+				
+			}
+
+			stage.update(event);
 				
 		}
 
@@ -448,17 +573,24 @@
 			//swap contents of tiles
 			var carA = tileA.carHere;
 			var carB = tileB.carHere;
+			var carAx = carA.x;
+			var carAy = carA.y;
+			var carBx = carB.x;
+			var carBy = carB.y;
+
 			if (carA && carB){
-				var tween = createjs.Tween.get(carA).to({x:carB.x, y:carB.y}, 400, createjs.Ease.cubicInOut).call(swapTilesComplete, [tileA, tileB]);
-				var tween2 = createjs.Tween.get(carB).to({x:carA.x, y:carA.y}, 400, createjs.Ease.cubicInOut);
-				displayInTransition = true;
+				var tween = createjs.Tween.get(carA).to({x:carBx, y:carBy}, 400, createjs.Ease.cubicInOut).call(swapTilesComplete, [tileA, tileB]);
+				var tween2 = createjs.Tween.get(carB).to({x:carAx, y:carAy}, 400, createjs.Ease.cubicInOut);
+				displayInTransition_swapping = true;
 			}
 			
 		}
 
 		function swapTilesComplete(tileA, tileB)
 		{
-			displayInTransition = false;
+			displayInTransition_swapping = false;
+
+			gameStateChanged = true;
 
 			var carA = tileA.carHere;
 			var carB = tileB.carHere;
@@ -471,8 +603,11 @@
 			var colorA = carA.colorState;
 			var colorB = carB.colorState;
 
-			carA.gotoAndStop(getFrameForCarState(colorA, dirB));
-			carB.gotoAndStop(getFrameForCarState(colorB, dirA));
+			//carA.colorState = colorB;
+			//carB.colorState = colorA;
+
+			carA.gotoAndStop(getFrameForCarState(carA.colorState, dirB));
+			carB.gotoAndStop(getFrameForCarState(carB.colorState, dirA));
 
 			carA.dir = dirB;
 			carB.dir = dirA;
@@ -496,9 +631,11 @@
 			}
 
 			if(checkSwapTilesForMatching(tileA, tileB)){
-				numMatchesInChain = 1;
+				numMatchesInChain = 0;
 				gameStateSettled = false;
 				continueClearingMatches();
+			}else{
+				console.log('no matches found after swap')
 			}
 			
 		}
@@ -559,7 +696,7 @@
 			}
 
 			
-			 document.getElementById("lightStatus").textContent = 'traffic light status: ' + greenlightStatusText;
+			 //document.getElementById("lightStatus").textContent = 'traffic light status: ' + greenlightStatusText;
 			 stage.update();
 
 			 turnsThisGreen = 0;
@@ -599,17 +736,17 @@
 			for (i = 0; i < activeCols; i++){
 				var p0 = columnStartingP[i];
 				var pL = columnTotalP[i];
-
+				var lastRowThisColumn = p0 + pL;
 				mTile = getMetaTileByIP(i, p0);
 				lastIdentity = mTile.identity;
 				consecutiveCount = 0;
 				
-				for (p = 1 + p0; p < (p0 + pL); p++){
+				for (p = 1 + p0; p < lastRowThisColumn; p++){
 					mTile = getMetaTileByIP(i, p);
 					nextIdentity = mTile.identity;
 					if (nextIdentity == lastIdentity && lastIdentity >= 0){
 						consecutiveCount++;
-						if (p == (activeRows - 1)){
+						if (p == (lastRowThisColumn - 1)){
 							//bottom tile of column
 							if (consecutiveCount >= 2){
 								var vSetEnd = new MatchingSet(matchingSetArray(getMetaTileByIP(i, p - consecutiveCount), consecutiveCount, true), true, lastIdentity);
@@ -675,17 +812,17 @@
 			for (p = 0; p < activeRows; p++){
 				var i0 = rowStartingI[p];
 				var iL = rowTotalI[p];
-
+				var lastColumnThisRow = i0 + iL;
 				mTile = getMetaTileByIP(i0, p);
 				lastIdentity = mTile.identity;
 				consecutiveCount = 0;
 				
-				for (i = 1 + i0; i < (i0 + iL); i++){
+				for (i = 1 + i0; i < lastColumnThisRow; i++){
 					mTile = getMetaTileByIP(i, p);
 					nextIdentity = mTile.identity;
 					if (nextIdentity == lastIdentity && lastIdentity >= 0){
 						consecutiveCount++;
-						if (i == (activeCols - 1)){
+						if (i == (lastColumnThisRow - 1)){
 							//last tile of row
 							if (consecutiveCount >= 2){
 								var vSetEnd = new MatchingSet(matchingSetArray(getMetaTileByIP(i - consecutiveCount, p), consecutiveCount, false), false, lastIdentity);
@@ -758,6 +895,7 @@
 				firstHorizontalMatch = new MatchingSet(adjsetHA, false);
 				foundMatches.push(firstHorizontalMatch);
 			}
+			//console.log('tileA, adjV = '+adjsetVA.length+' , adjH = '+adjsetHA.length);
 
 			var adjsetVB = [tileB];
 			tileB.addAdjacentVertical(adjsetVB, tileB.identity);
@@ -769,6 +907,8 @@
 					//make sure not part of same match as tile A
 						foundMatches.push(new MatchingSet(adjsetVB, true));
 					}
+				}else{
+					foundMatches.push(new MatchingSet(adjsetVB, true));
 				}
 			}
 			var adjsetHB = [tileB];
@@ -781,10 +921,16 @@
 						//make sure not part of same match as tile A
 						foundMatches.push(new MatchingSet(adjsetHB, false));
 					}
+				}else{
+					foundMatches.push(new MatchingSet(adjsetHB, false));
 				}
 			}
+			//console.log('tileB, adjV = '+adjsetVB.length+' , adjH = '+adjsetHB.length);
 			var numMatchesFound = foundMatches.length;
 			//do we need to vet these to make sure no single tile is part of 2 matching sets?
+			if (numMatchesFound > 1){
+				//would this be place to check for redundant match membership?
+			}
 
 			for (var i=0; i<numMatchesFound; i++){
 				//put these matches at top of queue
@@ -794,6 +940,7 @@
 				return true;
 			}else{
 				return false;
+
 			}
 			
 		}
@@ -814,7 +961,7 @@
 			}else if (continueClearingMatches()){
 				//more matches to clear
 				allClear = false;
-				numMatchesInChain++;
+				//numMatchesInChain++;
 			}else{
 				//everything settled, waiting on player input
 				//console.log("onUpdateClearingProcess, all clear");
@@ -827,23 +974,26 @@
 		function continueClearingMatches()
 		{
 			//current system can only clear one match at a time...return to outstandingMatches and clear those
+			var matchesCleared = false;
+
 			if (outstandingMatches.length > 0){
 				//var cSet =  outstandingMatches[0];
 				//cSet.tweenOutTiles();
 
 				instantClearAllMatchingSets();
 
-				return true;
+				matchesCleared = true;
+
 			}else if (countConsecutiveVertical() || countConsecutiveHorizontal()){
 				//var cSet = outstandingMatches[0];
 				//cSet.tweenOutTiles();
 
 				instantClearAllMatchingSets();
 
-				return true;
+				matchesCleared = true;
 			}
 
-			return false;
+			return matchesCleared;
 
 		}
 
@@ -896,9 +1046,30 @@
 				//console.log("spawnOneCar! car spawned at x:"+nCar.x+" y: "+nCar.y+" dir = "+mTile.direction);
 
 				mTile.setCarHere(nCar, "spawnOneCar");
+				//can we make sure its not same color as neighbors?
+
+				var adjSet = [];
+				mTile.addAdjacentOfIdentity(adjSet, mTile.identity);
+				if (adjSet.length >= 3){
+					mTile.identity++;
+					mTile.identity %= colorStatesTotal;
+					nCar.colorState = colorStates[mTile.identity];
+					nCar.gotoAndStop(getFrameForCarState(nCar.colorState, nCar.dir));
+				}
+
 			}else{
 				console.log("attempted spawn new car at occupied position");
 			}
+
+			if (Math.random() > 0.95){
+				//spawn ambulance
+				mTile.identity = 4;
+				nCar.colorState = 'ambulance';
+				nCar.gotoAndStop(getFrameForCarState(nCar.colorState, nCar.dir));
+			}
+
+
+			gameStateChanged = true;
 			stage.update();
 		}
 
@@ -919,9 +1090,20 @@
 			nCar.gotoAndStop(getFrameForCarState(nCar.colorState, nCar.dir));
 			stage.addChildAt(nCar, stage.getChildIndex(lights[0]));
 			spriteList.push(nCar);
-			nCar.addEventListener("click", handleOnPress);
+			//nCar.addEventListener("click", handleOnPress);
+			nCar.addEventListener("mousedown", handleOnPress);
+			//nCar.addEventListener("mouseout", handleMouseOut);
 			nCar.name = "car-"+inDir+" : "+nCar.colorState;
 			return nCar;
+		}
+
+		function clearACar(carObj){
+			stage.removeChild(carObj);
+			removeFromSet(carObj, spriteList);
+			recycledSprites.push(carObj);
+			//carObj.removeEventListener("click", handleOnPress);
+			carObj.removeEventListener("mousedown", handleOnPress);
+			
 		}
 
 		function setCarVelocity(car, dir){
@@ -992,7 +1174,7 @@
 						var destinationX = targetTile._i * squareSide;
 						var destinationY = targetTile._p * squareSide;
 						var tween = createjs.Tween.get(car).to({x:destinationX, y:destinationY}, 200, createjs.Ease.cubicInOut).call(carDriveComplete, [mTile, targetTile, myDir, car]);
-						displayInTransition = true;
+						displayInTransition_driving = true;
 
 						mTile.carLeavingHere();
 						//console.log("setCarInDriveCarForward : car = "+car);
@@ -1018,7 +1200,10 @@
 			//landingTile.setCarHere(car);
 			removeFromSet(car, carsInMotion);
 
-			displayInTransition = false;
+			if (carsInMotion.length < 1){
+				displayInTransition_driving = false;
+			}
+			
 
 			//find edge tile for column or row (last tile in lane) and see if new car can spawn there
 
@@ -1043,6 +1228,8 @@
 				//empty edge tile, spawn a car for it!
 				spawnOneCar(edgeTile);
 			}
+
+			gameStateChanged = true;
 
 			/*
 
@@ -1088,7 +1275,7 @@
 			return matchingSet;
 		}
 
-		function instantClearAllMatchingSets()
+		function instantClearAllMatchingSetsBySet()
 		{
 			//in one go, clear all the tiles that are part of matching sets (no tweening)
 			if (outstandingMatches.length > 0){
@@ -1097,6 +1284,38 @@
 					cSet.clearMembers();
 				}
 			}
+			outstandingMatches = [];
+		}
+
+		function instantClearAllMatchingSets()
+		{
+			//in one go, clear all the tiles that are part of matching sets (no tweening)
+			var tilesToClear = [];
+			var t;
+
+			if (outstandingMatches.length > 0){
+				for (var n=0; n<outstandingMatches.length; n++){
+					var cSet = outstandingMatches[n];
+					//cSet.clearMembers();
+					var cSetNum = cSet.numMembers;
+
+					var firstTile = cSet.setMembers[0];
+
+					registerMatchCleared(cSetNum, firstTile);
+
+					for (t = 0; t < cSetNum; t++){
+						var cSetTile = cSet.setMembers[t];
+						addToSet(cSetTile, tilesToClear);
+					}
+				}
+				for (t = 0; t < tilesToClear.length; t++){
+					var tTile = tilesToClear[t];
+					tTile.setClear();
+				}
+
+				stage.update();
+			}
+
 			outstandingMatches = [];
 		}
 
@@ -1136,6 +1355,46 @@
 			var stateIndex = lightColumns.indexOf(colorStateString);
 			return anim.frames[stateIndex];
 
+		}
+
+		function registerMatchCleared(numTilesInMatch, tileInSet)
+		{
+			numMatchesInChain++;
+			
+			var scoreTable = [0, 0, 1000, 3000, 5000, 10000];
+			var scorePlus = scoreTable[numTilesInMatch];
+			scorePlus *= numMatchesInChain;
+
+			playerScore += scorePlus;
+
+			launchScoreText(scorePlus, tileInSet._i * squareSide,  tileInSet._p * squareSide);
+
+			document.getElementById("lightStatus").textContent = 'player score: ' + playerScore;
+
+		}
+
+		function launchScoreText(amt, launchX, launchY)
+		{
+			//console.log("onLaunchScoreText- amt is "+amt+" launchX = "+launchX+" launchY = "+launchY);
+			var thisScoreText = new createjs.BitmapText(String(amt), fontSheet);
+			thisScoreText.x = launchX;
+			thisScoreText.y = launchY;
+			stage.addChild(thisScoreText);
+			scoreBubbles.push(thisScoreText);
+			var tween = createjs.Tween.get(thisScoreText).to({x:launchX, y:launchY - 60, alpha:0.5}, 500, createjs.Ease.cubicIn).call(scoreLaunchComplete, [thisScoreText]);
+			displayInTransition_scoreBubble = true;
+		}
+
+		function scoreLaunchComplete(scoreTextObj)
+		{
+			//console.log("scoreLaunchTweenComplete")
+
+			removeFromSet(scoreTextObj, scoreBubbles);
+			stage.removeChild(scoreTextObj);
+
+			if (scoreBubbles.length < 1){
+				displayInTransition_scoreBubble = false;
+			}
 		}
 		
 
@@ -1180,7 +1439,7 @@
 					//TweenMax.to(asset, transitionTime, {colorMatrixFilter:{brightness:2}});
 					var tween = createjs.Tween.get(car).to({alpha:0}, 200, createjs.Ease.bounceOut).call(this.tweenOutComplete, [], this);
 				}
-				displayInTransition = true;
+				displayInTransition_disappearing = true;
 				this.tilesTweenComplete = 0;
 
 				this.completeCount = 1;
@@ -1196,7 +1455,7 @@
 					//all tile tweens complete
 					this.clearMembers();
 
-					displayInTransition = false;
+					displayInTransition_disappearing = false;
 
 					removeFromSet(this, outstandingMatches);
 
@@ -1278,6 +1537,22 @@
 				if (this.E == inputTile) { return true; }
 				if (this.W == inputTile) { return true; }
 				return false;
+			}
+
+			this.traceTileIdentities = function()
+			{
+				var tracerString = 'me = ' + this.identity;
+				tracerString += ', ';
+				tracerString += 'N = ' + this.N.identity;
+				tracerString += ', ';
+				tracerString += 'S = ' + this.S.identity;
+				tracerString += ', ';
+				tracerString += 'E = ' + this.E.identity;
+				tracerString += ', ';
+				tracerString += 'W = ' + this.W.identity;
+
+				console.log(tracerString);
+
 			}
 			
 			
@@ -1406,16 +1681,65 @@
 			this.setClear = function(){
 				//remove this tile's car from game (this could be problem if tile was part of two matching sets, where car was deleted and now new one too?)
 				if (this.carHere != null){
-					stage.removeChild(this.carHere);
-					removeFromSet(this.carHere, spriteList);
-					recycledSprites.push(this.carHere);
-					this.carHere.removeEventListener("click", handleOnPress);
+					clearACar(this.carHere);
 					this.carHere = null;
 				}
 				this.identity = -1;
 			}
 
 
+		}
+
+		function initBitmapFont(letterWidth){
+			// Embedded SpriteSheet data.
+
+			/*
+			fontSheet = new createjs.SpriteSheet(
+			{
+    			images: [text_img], 
+    			frames:{width:32, height:28, count:11}
+    			animations:{
+    				1:[0, "1"],
+    				2:[1, "2"],
+    				3:[2, "3"],
+    				4:[3, "4"],
+    				5:[4, "5"],
+    				6:[5, "6"],
+    				7:[6, "7"],
+    				8:[7, "8"],
+    				9:[8, "9"],
+    				0:[9, "0"],
+    				!:[10, "!"],
+    			}
+			});
+*/			var letterHeight = 28;
+			if (letterWidth == 16){
+				letterHeight = 16;
+			}
+
+			var data = {
+				"animations":{
+					"1":{"frames":[0]},
+					"2":{"frames":[1]},
+					"3":{"frames":[2]},
+					"4":{"frames":[3]},
+					"5":{"frames":[4]},
+					"6":{"frames":[5]},
+					"7":{"frames":[6]},
+					"8":{"frames":[7]},
+					"9":{"frames":[8]},
+					"0":{"frames":[9]},
+					"!":{"frames":[10]}
+					
+				},
+
+				"images":[text_img],
+				"frames":{width:letterWidth, height:letterHeight, count:11}
+			};
+
+			var fontSpritesheet = new createjs.SpriteSheet(data);
+			
+			return fontSpritesheet;
 		}
 
 		function addToSet(element, setArray)
