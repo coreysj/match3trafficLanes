@@ -47,6 +47,8 @@
 
 		var spawningTiles = []; //last tile of each driveable lane, where new cars enter
 
+		var exitTiles = []; //front tile of each driveable lane
+
 		var activeCols = 12;  //only middle 4 active
 		var activeRows = 12;  //only middle 4 active
 
@@ -336,6 +338,21 @@
 			 spawningTiles.push(getMetaTileByIP(11, 4));
 			 spawningTiles.push(getMetaTileByIP(11, 5));
 
+			 //initialize exit tiles
+			 exitTiles = [];
+			 //N
+			 exitTiles.push(getMetaTileByIP(6, 0));
+			 exitTiles.push(getMetaTileByIP(7, 0));
+			 //S
+			 exitTiles.push(getMetaTileByIP(4, 11));
+			 exitTiles.push(getMetaTileByIP(5, 11));
+			 //E
+			 exitTiles.push(getMetaTileByIP(11, 6));
+			 exitTiles.push(getMetaTileByIP(11, 7));
+			 //W
+			 exitTiles.push(getMetaTileByIP(0, 4));
+			 exitTiles.push(getMetaTileByIP(0, 5));
+
 			 //identify intersection entrance tiles
 
 			 getMetaTileByIP(4, 6).intersectionEntranceDir = 'E';
@@ -548,10 +565,16 @@
 						if (checkIfIntersectionClear()){
 							changeLightStatus();
 							gameStateSettled = false;
+						}else{
+							driveOffEdges();
+							gameStateSettled = false;
 						}
 					}else if (turnsThisGreen > numTurnsOnGreen){
 						//green light period ended
 						changeLightStatus();
+					}else{
+						//driveOffEdges();
+						//gameStateSettled = false;
 					}
 				}else{
 					gameStateSettled = false;
@@ -563,6 +586,7 @@
 				
 			}
 
+			//would be good if this update could happen only when necessary
 			stage.update(event);
 				
 		}
@@ -1001,7 +1025,7 @@
 		{
 
 			//this function, when called, will advance one car one space each time it runs
-			//it will return false when no car can advance
+			//it will return false when no car can advance, otherwise it returns true
 
 			var foundAdvanceable = false;
 
@@ -1018,6 +1042,22 @@
 			}
 
 			return foundAdvanceable;
+
+		}
+
+		function driveOffEdges()
+		{
+			//cars at front edge of traffic (about to drive offscreen) actually disappear, letting all traffic move forward
+			//clears all edge tiles in one go
+
+			var numExitPoints = exitTiles.length;
+			for (var i=0; i < numExitPoints; i++){
+				var thisExitTile = exitTiles[i];
+				if (thisExitTile.carHere){
+					clearACar(thisExitTile.carHere);
+					thisExitTile.carLeavingHere();
+				}
+			}
 
 		}
 
@@ -1203,6 +1243,36 @@
 			if (carsInMotion.length < 1){
 				displayInTransition_driving = false;
 			}
+
+			//check if this tile is the front edge of row or column (car has reached last tile of driveable road for its direction)
+			var frontEdgeReached = false;
+
+			if (dir == "N"){
+				if (landingTile._p == 0){
+					frontEdgeReached = true;
+				}
+			}else if (dir == "S"){
+				if (landingTile._p == (activeRows - 1)){
+					frontEdgeReached = true;
+				}
+			}else if (dir == "W"){
+				if (landingTile._i == 0){
+					frontEdgeReached = true;
+				}
+			}else if (dir == "E"){
+				if (landingTile._i == (activeCols - 1)){
+					frontEdgeReached = true;
+				}
+			}
+
+			if (car.colorState == "ambulance" && frontEdgeReached){
+				//ambulance has made it through to last tile
+				console.log("ambulance has successfully reached last tile")
+				//remove ambulance from screen
+				clearACar(car);
+				landingTile.carLeavingHere();
+
+			}
 			
 
 			//find edge tile for column or row (last tile in lane) and see if new car can spawn there
@@ -1361,6 +1431,8 @@
 		{
 			numMatchesInChain++;
 			
+			//5103752890
+
 			var scoreTable = [0, 0, 1000, 3000, 5000, 10000];
 			var scorePlus = scoreTable[numTilesInMatch];
 			scorePlus *= numMatchesInChain;
